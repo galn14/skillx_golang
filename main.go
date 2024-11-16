@@ -8,6 +8,8 @@ import (
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/controllers"
 
+	"golang-firebase-backend/middleware"
+
 	"github.com/joho/godotenv"
 )
 
@@ -46,11 +48,15 @@ func main() {
 	mux.HandleFunc("/register", controllers.RegisterWithEmail)
 	mux.HandleFunc("/login/email", controllers.LoginWithEmail)
 	mux.HandleFunc("/login/google", controllers.LoginWithGoogle)
-	mux.HandleFunc("/api/skills/fetch", controllers.FetchSkills)
-	mux.HandleFunc("/api/skills/view", controllers.ShowSkill)
-	mux.HandleFunc("/api/skills/admincreate", controllers.CreateSkill)
-	mux.HandleFunc("/api/skills/adminupdate", controllers.UpdateSkill)
-	mux.HandleFunc("/api/skills/admindelete", controllers.DeleteSkill)
+	//skill route
+	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
+	mux.HandleFunc("/skills/view", controllers.ShowSkill)
+	//skillroute for admin
+	mux.HandleFunc("/skills/admincreate", controllers.CreateSkill)
+	mux.HandleFunc("/skills/adminupdate", controllers.UpdateSkill)
+	mux.HandleFunc("/skills/admindelete", controllers.DeleteSkill)
+	//userskill routes
+	mux.Handle("/skills/add", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.AddUserSkill)))
 
 	// Wrap ServeMux with CORS middleware
 	handler := corsMiddleware(mux)
