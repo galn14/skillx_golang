@@ -46,6 +46,11 @@ func main() {
 	mux.HandleFunc("/register", controllers.RegisterWithEmail)
 	mux.HandleFunc("/login/email", controllers.LoginWithEmail)
 	mux.HandleFunc("/login/google", controllers.LoginWithGoogle)
+	mux.HandleFunc("/api/skills/fetch", controllers.FetchSkills)
+	mux.HandleFunc("/api/skills/view", controllers.ShowSkill)
+	mux.HandleFunc("/api/skills/admincreate", controllers.CreateSkill)
+	mux.HandleFunc("/api/skills/adminupdate", controllers.UpdateSkill)
+	mux.HandleFunc("/api/skills/admindelete", controllers.DeleteSkill)
 
 	// Wrap ServeMux with CORS middleware
 	handler := corsMiddleware(mux)
