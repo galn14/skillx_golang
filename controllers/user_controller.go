@@ -40,11 +40,13 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateUser handles updating user data in Firebase Realtime Database
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Received request on %s", r.URL.Path)
 	ctx := context.Background()
 
 	// Extract Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		log.Printf("Invalid or missing Authorization header")
 		http.Error(w, "Missing or invalid Authorization header", http.StatusUnauthorized)
 		return
 	}
@@ -64,6 +66,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
 	uid := token.Subject
 	log.Printf("Verified UID: %s", uid)
 

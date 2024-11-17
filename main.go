@@ -1,14 +1,12 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
-
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/controllers"
-
 	"golang-firebase-backend/middleware"
+	"log"
+	"net/http"
+	"os" // Import the gorilla mux package
 
 	"github.com/joho/godotenv"
 )
@@ -50,7 +48,9 @@ func main() {
 	mux.HandleFunc("/login/google", controllers.LoginWithGoogle)
 
 	//user update
+
 	mux.Handle("/user/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateUser)))
+
 	//skill route
 	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
 	mux.HandleFunc("/skills/view", controllers.ShowSkill)
