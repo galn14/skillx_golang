@@ -143,9 +143,9 @@ func LoginWithEmail(w http.ResponseWriter, r *http.Request) {
 func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
 	idToken := r.Header.Get("Authorization")
 
-	// Check if the Authorization header starts with "Bearer "
+	// Extract the token part if prefixed with "Bearer "
 	if len(idToken) > 7 && idToken[:7] == "Bearer " {
-		idToken = idToken[7:] // Extract the token part
+		idToken = idToken[7:]
 	}
 
 	if idToken == "" {
@@ -154,20 +154,24 @@ func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	client, err := config.FirebaseApp.Auth(ctx)
+
+	// Initialize Firebase Auth
+	authClient, err := config.FirebaseApp.Auth(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Auth")
 		return
 	}
 
 	// Verify the ID token
-	token, err := client.VerifyIDToken(ctx, idToken)
+	token, err := authClient.VerifyIDToken(ctx, idToken)
 	if err != nil {
 		utils.RespondError(w, http.StatusUnauthorized, "Invalid ID Token")
 		return
 	}
 
 	uid := token.UID
+
+	// Initialize Firebase Database
 	dbClient, err := config.FirebaseApp.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
@@ -175,30 +179,41 @@ func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	ref := dbClient.NewRef("users/" + uid)
-	if err := ref.Get(ctx, &user); err != nil {
-		// If user data doesn't exist, create new data
-		authUser, err := client.GetUser(ctx, uid)
+	userRef := dbClient.NewRef("users/" + uid)
+
+	// Try to fetch the user from the database
+	if err := userRef.Get(ctx, &user); err != nil || user.Email == "" {
+		// If user data doesn't exist, fetch user data from Firebase Auth
+		authUser, err := authClient.GetUser(ctx, uid)
 		if err != nil {
 			utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch user details")
 			return
 		}
+
+		// Populate the user model with Firebase Auth data
 		user = models.User{
 			UID:      uid,
 			Name:     authUser.DisplayName,
 			Email:    authUser.Email,
 			PhotoURL: authUser.PhotoURL,
 		}
-		if err := ref.Set(ctx, user); err != nil {
+
+		// Save the new user data in Firebase Database
+		if err := userRef.Set(ctx, user); err != nil {
 			utils.RespondError(w, http.StatusInternalServerError, "Failed to save user data")
 			return
 		}
 	}
 
-	// Return the user data along with the token
+	// Include Google data and token in the response
 	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Login successful",
-		"user":    user,
-		"token":   idToken,
+		"user": map[string]interface{}{
+			"uid":      user.UID,
+			"name":     user.Name,
+			"email":    user.Email,
+			"photoURL": user.PhotoURL,
+		},
+		"token": idToken,
 	})
 }
