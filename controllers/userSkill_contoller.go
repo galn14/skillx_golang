@@ -54,3 +54,41 @@ func AddUserSkill(w http.ResponseWriter, r *http.Request) {
 		"message": "Skill added successfully",
 	})
 }
+func ListUserSkills(w http.ResponseWriter, r *http.Request) {
+	// Retrieve the UID from context
+	uid := r.Context().Value("uid")
+	if uid == nil {
+		utils.RespondError(w, http.StatusUnauthorized, "Unauthorized access")
+		return
+	}
+
+	// Fetch skills from Firebase Realtime Database
+	ctx := context.Background()
+	dbClient, err := config.FirebaseApp.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Get all skills for the user
+	ref := dbClient.NewRef("user_skills/" + uid.(string))
+	var skills map[string]models.UserSkill
+	if err := ref.Get(ctx, &skills); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to retrieve user skills: "+err.Error())
+		return
+	}
+
+	// If no skills found, return an empty array
+	if skills == nil {
+		utils.RespondJSON(w, http.StatusOK, []models.UserSkill{})
+		return
+	}
+
+	// Convert map to slice
+	var skillList []models.UserSkill
+	for _, skill := range skills {
+		skillList = append(skillList, skill)
+	}
+
+	utils.RespondJSON(w, http.StatusOK, skillList)
+}
