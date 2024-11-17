@@ -48,6 +48,9 @@ func main() {
 	mux.HandleFunc("/register", controllers.RegisterWithEmail)
 	mux.HandleFunc("/login/email", controllers.LoginWithEmail)
 	mux.HandleFunc("/login/google", controllers.LoginWithGoogle)
+
+	//user update
+	mux.Handle("/user/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateUser)))
 	//skill route
 	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
 	mux.HandleFunc("/skills/view", controllers.ShowSkill)

@@ -229,10 +229,13 @@ func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
 	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Login successful",
 		"user": map[string]interface{}{
-			"uid":      user.UID,
-			"name":     user.Name,
-			"email":    user.Email,
-			"photoURL": user.PhotoURL,
+			"uid":          user.UID,
+			"name":         user.Name,
+			"email":        user.Email,
+			"photoURL":     user.PhotoURL,
+			"language":     user.Language,
+			"major":        user.Major,
+			"organization": user.Organization,
 		},
 		"token": idToken,
 	})
