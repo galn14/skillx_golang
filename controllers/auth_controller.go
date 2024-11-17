@@ -133,11 +133,31 @@ func LoginWithEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Successful login response
-	utils.RespondJSON(w, http.StatusOK, map[string]string{
+	// Generate a token (e.g., Firebase custom token or JWT)
+	authClient, err := config.FirebaseApp.Auth(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to initialize Firebase Auth")
+		return
+	}
+
+	idToken, err := authClient.CustomToken(ctx, user.UID)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to generate token: "+err.Error())
+		return
+	}
+
+	// Successful login response with token and user info
+	response := map[string]interface{}{
 		"message": "Login successful",
-		"uid":     user.UID,
-	})
+		"user": map[string]interface{}{
+			"uid":      user.UID,
+			"name":     user.Name,
+			"email":    user.Email,
+			"photoURL": user.PhotoURL,
+		},
+		"token": idToken,
+	}
+	utils.RespondJSON(w, http.StatusOK, response)
 }
 
 func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
