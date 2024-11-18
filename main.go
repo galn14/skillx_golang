@@ -51,11 +51,11 @@ func main() {
 	mux.Handle("/user/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateUser)))
 	// message route
 
-	mux.Handle("/messages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMessages)))
-	mux.Handle("/messages/show/{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMessage)))
-	mux.Handle("/messages/newChat", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMessage)))
-	mux.Handle("/messages/updateChat{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateMessage)))
-	mux.Handle("/messages/delete{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMessage)))
+	mux.Handle("/messages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMessages)))            // Fetch all messages
+	mux.Handle("/messages/show", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMessage)))         // Show a specific message (ID as query parameter)
+	mux.Handle("/messages/newChat", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMessage)))    // Create a new message
+	mux.Handle("/messages/updateChat", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateMessage))) // Update a message (ID as query parameter)
+	mux.Handle("/messages/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMessage)))     // Delete a message (ID as query parameter)
 
 	//skill route
 	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
