@@ -52,10 +52,10 @@ func main() {
 	// message route
 
 	mux.Handle("/messages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMessages)))
-	mux.Handle("/messages/{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMessage)))
-	mux.Handle("/sendMessages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMessage)))
-	mux.Handle("/messages/{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateMessage)))
-	mux.Handle("/messages/{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMessage)))
+	mux.Handle("/messages/show/{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMessage)))
+	mux.Handle("/messages/newChat", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMessage)))
+	mux.Handle("/messages/updateChat{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateMessage)))
+	mux.Handle("/messages/delete{id}", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMessage)))
 
 	//skill route
 	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
