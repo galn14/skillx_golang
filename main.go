@@ -43,9 +43,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Define routes
-	mux.HandleFunc("/register", controllers.RegisterWithEmail)
-	mux.HandleFunc("/login/email", controllers.LoginWithEmail)
 	mux.HandleFunc("/login/google", controllers.LoginWithGoogle)
+	mux.HandleFunc("/logout", controllers.Logout)
 
 	//user update
 
