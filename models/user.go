@@ -17,3 +17,20 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 	LastSignIn   time.Time `json:"last_sign_in,omitempty"`
 }
+
+// NewBuyer creates a new User with the buyer role
+func NewBuyer(uid, name, email, organization, major, language, password string) *User {
+	return &User{
+		UID:          uid,
+		Name:         name,
+		Email:        email,
+		Organization: organization,
+		Major:        major,
+		Language:     language,
+		Password:     password,
+		Verified:     false,   // Default to not verified
+		Role:         "buyer", // Set role as buyer
+		CreatedAt:    time.Now(),
+		LastSignIn:   time.Time{}, // Empty sign-in time
+	}
+}
