@@ -3,6 +3,7 @@ package main
 import (
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/controllers"
+	"golang-firebase-backend/handlers"
 	"golang-firebase-backend/middleware"
 	"log"
 	"net/http"
@@ -47,7 +48,6 @@ func main() {
 	mux.HandleFunc("/logout", controllers.Logout)
 
 	//user update
-
 	mux.Handle("/user/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateUser)))
 
 	//skill route
@@ -60,10 +60,17 @@ func main() {
 	//userskill routes
 	mux.Handle("/skills/add", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.AddUserSkill)))
 	mux.Handle("/user/portfolios/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewUserPortfolios)))
-	mux.Handle("/user/portfolios/view/specific", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewSpecificUserPortfolios)))
+	mux.Handle("/user/portfolios/view-specific", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewSpecificUserPortfolios)))
 	mux.Handle("/user/portfolios/create", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreatePortfolio)))
 	mux.Handle("/user/portfolios/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdatePortfolio)))
 	mux.Handle("/user/portfolios/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeletePortfolio)))
+
+	mux.Handle("/user/request-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleRequestSeller)))
+	mux.Handle("/admin/verify-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleAdminVerifySeller)))
+	mux.Handle("/user/change-role", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleChangeRole)))
+
+	//tambahin role admin, seller, buyer sebagai middleware
+
 	// Wrap ServeMux with CORS middleware
 	handler := corsMiddleware(mux)
 
