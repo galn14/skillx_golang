@@ -59,11 +59,11 @@ func main() {
 	mux.HandleFunc("/skills/admindelete", controllers.DeleteSkill)
 	//userskill routes
 	mux.Handle("/skills/add", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.AddUserSkill)))
-	mux.Handle("/user/portfolios/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ListPortfolios)))
+	mux.Handle("/user/portfolios/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewUserPortfolios)))
+	mux.Handle("/user/portfolios/view/specific", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewSpecificUserPortfolios)))
 	mux.Handle("/user/portfolios/create", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreatePortfolio)))
-	mux.Handle("/user/portfolios/view/", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowPortfolio)))
-	mux.Handle("/user/portfolios/update/", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdatePortfolio)))
-	mux.Handle("/user/portfolios/delete/", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeletePortfolio)))
+	mux.Handle("/user/portfolios/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdatePortfolio)))
+	mux.Handle("/user/portfolios/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeletePortfolio)))
 	// Wrap ServeMux with CORS middleware
 	handler := corsMiddleware(mux)
 

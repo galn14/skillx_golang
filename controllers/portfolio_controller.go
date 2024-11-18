@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/models"
 	"golang-firebase-backend/utils"
@@ -11,8 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// ListPortfolios - GET /user/portfolios/view
-func ListPortfolios(w http.ResponseWriter, r *http.Request) {
+// ViewUserPortfolios - GET /user/portfolios/view
+func ViewUserPortfolios(w http.ResponseWriter, r *http.Request) {
 	uid, ok := r.Context().Value("uid").(string)
 	if !ok {
 		utils.RespondError(w, http.StatusUnauthorized, "Unauthorized access")
@@ -25,15 +26,71 @@ func ListPortfolios(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref := client.NewRef("portfolios/" + uid)
-	var portfolios []models.Portfolio
+	// Referensi ke portfolio milik user tertentu
+	ref := client.NewRef(fmt.Sprintf("portfolios/%s", uid))
+	var portfolios map[string]models.Portfolio
+
+	// Ambil seluruh portfolio milik user
 	err = ref.Get(context.Background(), &portfolios)
 	if err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch portfolios")
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch user portfolios")
 		return
 	}
 
-	utils.RespondJSON(w, http.StatusOK, portfolios)
+	if portfolios == nil {
+		portfolios = make(map[string]models.Portfolio)
+	}
+
+	// Ubah ke slice untuk respons JSON
+	var result []models.Portfolio
+	for _, portfolio := range portfolios {
+		result = append(result, portfolio)
+	}
+
+	utils.RespondJSON(w, http.StatusOK, result)
+}
+
+func ViewSpecificUserPortfolios(w http.ResponseWriter, r *http.Request) {
+	// Decode request body
+	var requestBody struct {
+		UserID string `json:"userID"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil || requestBody.UserID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "UserID is required in the request body")
+		return
+	}
+
+	userID := requestBody.UserID
+
+	client, err := config.FirebaseApp.Database(context.Background())
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase database")
+		return
+	}
+
+	// Referensi ke portfolio user tertentu
+	ref := client.NewRef(fmt.Sprintf("portfolios/%s", userID))
+	var portfolios map[string]models.Portfolio
+
+	// Ambil seluruh portfolio milik user
+	err = ref.Get(context.Background(), &portfolios)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch portfolios for the specified user")
+		return
+	}
+
+	if portfolios == nil {
+		portfolios = make(map[string]models.Portfolio)
+	}
+
+	// Ubah ke slice untuk respons JSON
+	var result []models.Portfolio
+	for _, portfolio := range portfolios {
+		result = append(result, portfolio)
+	}
+
+	utils.RespondJSON(w, http.StatusOK, result)
 }
 
 // CreatePortfolio - POST /user/portfolios/create
@@ -60,8 +117,7 @@ func CreatePortfolio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ref := client.NewRef("portfolios/" + uid + "/" + portfolio.ID)
-	err = ref.Set(context.Background(), portfolio)
-	if err != nil {
+	if err := ref.Set(context.Background(), portfolio); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to create portfolio")
 		return
 	}
@@ -69,53 +125,15 @@ func CreatePortfolio(w http.ResponseWriter, r *http.Request) {
 	utils.RespondJSON(w, http.StatusCreated, portfolio)
 }
 
-// ShowPortfolio - GET /user/portfolios/view/{id}
-func ShowPortfolio(w http.ResponseWriter, r *http.Request) {
-	uid, ok := r.Context().Value("uid").(string)
-	if !ok {
-		utils.RespondError(w, http.StatusUnauthorized, "Unauthorized access")
-		return
-	}
-
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		utils.RespondError(w, http.StatusBadRequest, "Portfolio ID is required")
-		return
-	}
-
-	client, err := config.FirebaseApp.Database(context.Background())
-	if err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase database")
-		return
-	}
-
-	ref := client.NewRef("portfolios/" + uid + "/" + id)
-	var portfolio models.Portfolio
-	err = ref.Get(context.Background(), &portfolio)
-	if err != nil {
-		utils.RespondError(w, http.StatusNotFound, "Portfolio not found")
-		return
-	}
-
-	utils.RespondJSON(w, http.StatusOK, portfolio)
-}
-
-// UpdatePortfolio - PUT /user/portfolios/update/{id}
 func UpdatePortfolio(w http.ResponseWriter, r *http.Request) {
 	uid, ok := r.Context().Value("uid").(string)
-	if !ok {
+	if !ok || uid == "" {
 		utils.RespondError(w, http.StatusUnauthorized, "Unauthorized access")
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		utils.RespondError(w, http.StatusBadRequest, "Portfolio ID is required")
-		return
-	}
-
-	var updatedPortfolio models.Portfolio
-	if err := json.NewDecoder(r.Body).Decode(&updatedPortfolio); err != nil {
+	var portfolio models.Portfolio
+	if err := json.NewDecoder(r.Body).Decode(&portfolio); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
@@ -126,17 +144,50 @@ func UpdatePortfolio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref := client.NewRef("portfolios/" + uid + "/" + id)
-	err = ref.Set(context.Background(), updatedPortfolio)
-	if err != nil {
+	ref := client.NewRef(fmt.Sprintf("portfolios/%s/%s", portfolio.UserID, portfolio.ID))
+	var existingPortfolio models.Portfolio
+	if err := ref.Get(context.Background(), &existingPortfolio); err != nil || existingPortfolio.ID == "" {
+		utils.RespondError(w, http.StatusNotFound, "Portfolio not found")
+		return
+	}
+
+	// Logika untuk field kosong
+	if portfolio.Title != "" {
+		existingPortfolio.Title = portfolio.Title
+	}
+	if portfolio.Description != "" {
+		existingPortfolio.Description = portfolio.Description
+	}
+	if portfolio.Link != "" {
+		existingPortfolio.Link = portfolio.Link
+	}
+	if portfolio.Photo != "" || portfolio.Photo == "" {
+		existingPortfolio.Photo = portfolio.Photo // Tetap kosong jika input kosong
+	}
+	if portfolio.Type != "" || portfolio.Type == "" {
+		existingPortfolio.Type = portfolio.Type // Tetap kosong jika input kosong
+	}
+	if portfolio.Status != "" || portfolio.Status == "" {
+		existingPortfolio.Status = portfolio.Status // Tetap kosong jika input kosong
+	}
+	if portfolio.DateCreated != "" {
+		existingPortfolio.DateCreated = portfolio.DateCreated
+	}
+	if portfolio.DateEnd != "" || portfolio.DateEnd == "" {
+		existingPortfolio.DateEnd = portfolio.DateEnd // Tetap kosong jika input kosong
+	}
+	existingPortfolio.IsPresent = portfolio.IsPresent
+
+	// Simpan ke Firebase
+	if err := ref.Set(context.Background(), existingPortfolio); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to update portfolio")
 		return
 	}
 
-	utils.RespondJSON(w, http.StatusOK, updatedPortfolio)
+	utils.RespondJSON(w, http.StatusOK, existingPortfolio)
 }
 
-// DeletePortfolio - DELETE /user/portfolios/delete/{id}
+// DeletePortfolio - POST /user/portfolios/delete
 func DeletePortfolio(w http.ResponseWriter, r *http.Request) {
 	uid, ok := r.Context().Value("uid").(string)
 	if !ok {
@@ -144,9 +195,11 @@ func DeletePortfolio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		utils.RespondError(w, http.StatusBadRequest, "Portfolio ID is required")
+	var requestBody struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil || requestBody.ID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Portfolio ID is required in the request body")
 		return
 	}
 
@@ -156,9 +209,8 @@ func DeletePortfolio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref := client.NewRef("portfolios/" + uid + "/" + id)
-	err = ref.Delete(context.Background())
-	if err != nil {
+	ref := client.NewRef(fmt.Sprintf("portfolios/%s/%s", uid, requestBody.ID))
+	if err := ref.Delete(context.Background()); err != nil {
 		utils.RespondError(w, http.StatusNotFound, "Portfolio not found or already deleted")
 		return
 	}
