@@ -34,6 +34,7 @@ func FetchServices(w http.ResponseWriter, r *http.Request) {
 		serviceList = append(serviceList, service)
 	}
 
+	// Respond with services including link and iconUrl
 	utils.RespondJSON(w, http.StatusOK, serviceList)
 }
 
@@ -67,6 +68,7 @@ func ShowService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	service.IdService = requestBody.Id
+	// Respond with service details including link and iconUrl
 	utils.RespondJSON(w, http.StatusOK, service)
 }
 
@@ -78,8 +80,17 @@ func CreateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate required fields
 	if service.TitleService == "" {
 		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleService is required")
+		return
+	}
+	if service.Link == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "Link is required")
+		return
+	}
+	if service.IconUrl == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "IconUrl is required")
 		return
 	}
 
@@ -98,6 +109,7 @@ func CreateService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	service.IdService = id
+	// Respond with success and service details
 	utils.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
 		"data":    service,

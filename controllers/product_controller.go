@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang-firebase-backend/config"
@@ -14,6 +15,73 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// SearchProducts searches products based on query parameters
+// SearchProducts allows searching products using a JSON body
+func SearchProducts(w http.ResponseWriter, r *http.Request) {
+	// Retrieve the search term from query parameters
+	searchTerm := r.URL.Query().Get("title") // "title" is the search parameter
+
+	// If searchTerm is empty, return an error
+	if searchTerm == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Search term is required")
+		return
+	}
+
+	// Split the search term into individual words (by spaces)
+	searchWords := strings.Fields(searchTerm)
+
+	// Initialize Firebase client
+	ctx := context.Background()
+	client, err := config.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Reference the products node in Firebase
+	ref := client.NewRef("products")
+	var products map[string]models.Product
+
+	// Retrieve all products from Firebase
+	if err := ref.Get(ctx, &products); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
+		return
+	}
+
+	// Filter products based on the presence of each search word in NameProduct (case-insensitive)
+	var filteredProducts []models.Product
+	for _, product := range products {
+		// Initialize a flag to check if all words match
+		matches := true
+
+		// Check if each word in the search query exists in the product name
+		for _, word := range searchWords {
+			if !strings.Contains(strings.ToLower(product.NameProduct), strings.ToLower(word)) {
+				matches = false
+				break
+			}
+		}
+
+		// If the product matches all the words in the search query, add it to the result
+		if matches {
+			filteredProducts = append(filteredProducts, product)
+		}
+	}
+
+	// If no products match, return an empty list or a message
+	if len(filteredProducts) == 0 {
+		utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+			"success": false,
+			"message": "No products found matching the search terms",
+			"data":    filteredProducts,
+		})
+		return
+	}
+
+	// Respond with filtered products
+	utils.RespondJSON(w, http.StatusOK, filteredProducts)
+}
 
 // FetchProducts retrieves all products
 func FetchProducts(w http.ResponseWriter, r *http.Request) {
