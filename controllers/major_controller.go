@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"golang-firebase-backend/config"
@@ -27,6 +28,9 @@ func FetchMajors(w http.ResponseWriter, r *http.Request) {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch majors")
 		return
 	}
+
+	// Log majors fetched from Firebase
+	fmt.Println("Fetched majors:", majors)
 
 	var majorList []models.Major
 	for id, major := range majors {
@@ -78,8 +82,8 @@ func CreateMajor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if major.TitleMajor == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleMajor is required")
+	if major.TitleMajor == "" || major.IconUrl == "" || major.Link == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleMajor, IconUrl, and Link are required")
 		return
 	}
 
