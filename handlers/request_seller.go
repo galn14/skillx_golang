@@ -9,6 +9,51 @@ import (
 	"golang-firebase-backend/config"
 )
 
+func GetRegisterSellerStatus(w http.ResponseWriter, r *http.Request) {
+	// Extract UID from context
+	uid, ok := r.Context().Value("uid").(string)
+	if !ok || uid == "" {
+		http.Error(w, "Unauthorized: UID not found", http.StatusUnauthorized)
+		return
+	}
+
+	// Initialize Firebase Database client
+	client, err := config.FirebaseApp.Database(context.Background())
+	if err != nil {
+		http.Error(w, "Failed to connect to Firebase", http.StatusInternalServerError)
+		return
+	}
+
+	// Reference the user's registerSellers entry
+	ref := client.NewRef("registerSellers/" + uid)
+
+	// Fetch the data
+	var registerSellerData map[string]interface{}
+	if err := ref.Get(context.Background(), &registerSellerData); err != nil {
+		http.Error(w, "Failed to fetch registerSeller data", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if data exists
+	if registerSellerData == nil {
+		http.Error(w, "No registerSeller data found for this user", http.StatusNotFound)
+		return
+	}
+
+	// Extract status
+	status, ok := registerSellerData["status"].(string)
+	if !ok {
+		http.Error(w, "Invalid data format: 'status' not found", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the status
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": status,
+	})
+}
+
 func HandleRequestSeller(w http.ResponseWriter, r *http.Request) {
 	// Ambil UID dari context
 	uid := r.Context().Value("uid").(string)

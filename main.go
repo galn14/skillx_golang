@@ -95,6 +95,7 @@ func main() {
 
 	mux.Handle("/user/request-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleRequestSeller)))
 	mux.Handle("/admin/verify-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleAdminVerifySeller)))
+	mux.Handle("/user/request-seller-status", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.GetRegisterSellerStatus)))
 	mux.Handle("/user/change-role", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleChangeRole)))
 
 	//tambahin role admin, seller, buyer sebagai middleware
