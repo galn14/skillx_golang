@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/models"
+	"golang-firebase-backend/services"
 	"golang-firebase-backend/utils"
+
 	"log"
 	"net/http"
 	"strings"
@@ -35,10 +37,44 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondJSON(w, http.StatusOK, user)
+	// Jika major tersedia, ambil titleMajor dari Major collection
+	var majorTitle string
+	if user.Major != "" {
+		var major models.Major
+		majorRef := client.NewRef("majors/" + user.Major)
+		if err := majorRef.Get(ctx, &major); err != nil {
+			utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch major data")
+			return
+		}
+		majorTitle = major.TitleMajor
+	}
+
+	// Tambahkan major title ke response user
+	response := map[string]interface{}{
+		"uid":          user.UID,
+		"name":         user.Name,
+		"email":        user.Email,
+		"organization": user.Organization,
+		"major": map[string]string{
+			"idMajor":    user.Major,
+			"titleMajor": majorTitle,
+		},
+		"language":   user.Language,
+		"photo_url":  user.PhotoURL,
+		"verified":   user.Verified,
+		"role":       user.Role,
+		"created_at": user.CreatedAt,
+		"last_sign_in": func() interface{} {
+			if user.LastSignIn.IsZero() {
+				return nil
+			}
+			return user.LastSignIn
+		}(),
+	}
+
+	utils.RespondJSON(w, http.StatusOK, response)
 }
 
-// UpdateUser handles updating user data in Firebase Realtime Database
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request on %s", r.URL.Path)
 	ctx := context.Background()
@@ -71,7 +107,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Verified UID: %s", uid)
 
 	// Decode the request payload
-	var updatedUser models.User
+	var updatedUser map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&updatedUser); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid request payload")
 		return
@@ -96,12 +132,51 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update fields
-	existingUser.Name = updatedUser.Name
-	existingUser.Email = updatedUser.Email
-	existingUser.Organization = updatedUser.Organization
-	existingUser.Major = updatedUser.Major
-	existingUser.Language = updatedUser.Language
+	// Initialize warnings
+	var warnings []string
+
+	// Update fields dynamically based on input
+	if name, ok := updatedUser["name"].(string); ok && name != "" {
+		existingUser.Name = name
+	}
+	if organization, ok := updatedUser["organization"].(string); ok && organization != "" {
+		existingUser.Organization = organization
+	}
+	if language, ok := updatedUser["language"].(string); ok && language != "" {
+		existingUser.Language = language
+	}
+
+	// Dalam bagian Major validation di fungsi UpdateUser
+	if major, ok := updatedUser["major"]; ok {
+		switch v := major.(type) {
+		case string: // major as string (titleMajor)
+			if services.IsValidMajorTitle(ctx, v) {
+				existingUser.Major = v
+			} else {
+				log.Printf("Invalid major title: %s, removing major", v)
+				existingUser.Major = "" // Remove major if invalid
+				warnings = append(warnings, "Provided major is not registered. Major field will not be updated.")
+			}
+		case map[string]interface{}: // major as object
+			if titleMajor, ok := v["titleMajor"].(string); ok && titleMajor != "" {
+				if services.IsValidMajorTitle(ctx, titleMajor) {
+					existingUser.Major = titleMajor
+				} else {
+					log.Printf("Invalid major title: %s, removing major", titleMajor)
+					existingUser.Major = "" // Remove major if invalid
+					warnings = append(warnings, "Provided major is not registered. Major field will not be updated.")
+				}
+			} else {
+				log.Printf("Invalid major format, removing major")
+				existingUser.Major = "" // Remove major if invalid format
+				warnings = append(warnings, "Invalid major format provided. Major field will not be updated.")
+			}
+		default:
+			log.Printf("Invalid major format, removing major")
+			existingUser.Major = "" // Remove major if invalid format
+			warnings = append(warnings, "Invalid major format provided. Major field will not be updated.")
+		}
+	}
 
 	// Write updated user to Firebase
 	if err := userRef.Set(ctx, existingUser); err != nil {
@@ -111,9 +186,11 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("User updated successfully")
 
-	// Respond with success
-	utils.RespondJSON(w, http.StatusOK, map[string]string{
-		"message": "User updated successfully",
-		"uid":     uid,
-	})
+	// Respond with success and warnings (if any)
+	response := map[string]interface{}{
+		"message":  "User updated successfully",
+		"uid":      uid,
+		"warnings": warnings,
+	}
+	utils.RespondJSON(w, http.StatusOK, response)
 }

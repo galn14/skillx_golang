@@ -72,6 +72,18 @@ func main() {
 	mux.Handle("/user/portfolios/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdatePortfolio)))
 	mux.Handle("/user/portfolios/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeletePortfolio)))
 
+	// Major routes
+	mux.Handle("/majors/adminfetch", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMajors)))  // Fetch all majors
+	mux.Handle("/majors/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMajor))) // Create a new major
+	mux.Handle("/majors/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMajor)))     // Update a major
+	mux.Handle("/majors/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMajor))) // Delete a major
+
+	// Major routes
+	mux.Handle("/services", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchServices)))             // Fetch all majors
+	mux.Handle("/services/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowService)))     // Create a new major
+	mux.Handle("/services/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateService))) // Update a major
+	mux.Handle("/services/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteService))) // Delete a major
+
 	mux.Handle("/user/request-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleRequestSeller)))
 	mux.Handle("/admin/verify-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleAdminVerifySeller)))
 	mux.Handle("/user/change-role", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleChangeRole)))

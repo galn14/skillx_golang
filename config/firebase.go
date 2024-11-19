@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	firebase "firebase.google.com/go"
+	"firebase.google.com/go/db"
 
 	"google.golang.org/api/option"
 )
@@ -25,4 +26,21 @@ func InitializeFirebaseApp() (*firebase.App, error) {
 	FirebaseApp = app
 
 	return app, err
+}
+
+// Database initializes and returns the Firebase Realtime Database client
+func Database(ctx context.Context) (*db.Client, error) {
+	if FirebaseApp == nil {
+		_, err := InitializeFirebaseApp()
+		if err != nil {
+			return nil, fmt.Errorf("error initializing Firebase App: %v", err)
+		}
+	}
+
+	client, err := FirebaseApp.Database(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing Firebase Database: %v", err)
+	}
+
+	return client, nil
 }
