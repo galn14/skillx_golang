@@ -84,6 +84,12 @@ func main() {
 	mux.Handle("/services/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateService))) // Update a major
 	mux.Handle("/services/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteService))) // Delete a major
 
+	mux.Handle("/products", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchProducts)))
+	mux.Handle("/products/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewProduct)))
+	mux.Handle("/products/create", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateProduct)))
+	mux.Handle("/products/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateProduct)))
+	mux.Handle("/products/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteProduct)))
+
 	mux.Handle("/user/request-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleRequestSeller)))
 	mux.Handle("/admin/verify-seller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleAdminVerifySeller)))
 	mux.Handle("/user/change-role", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleChangeRole)))
