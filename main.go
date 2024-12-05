@@ -98,6 +98,8 @@ func main() {
 	mux.Handle("/user/request-seller-status", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.GetRegisterSellerStatus)))
 	mux.Handle("/user/change-role", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleChangeRole)))
 
+	mux.Handle("/user/user-seller-data", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleGetUserAndSellerData)))
+
 	//tambahin role admin, seller, buyer sebagai middleware
 
 	// Wrap ServeMux with CORS middleware

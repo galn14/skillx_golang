@@ -10,11 +10,9 @@ import (
 )
 
 func HandleAdminVerifySeller(w http.ResponseWriter, r *http.Request) {
-	// Ambil UID dari context
-	uid := r.Context().Value("uid").(string)
-
 	// Decode body request
 	var request struct {
+		UID    string `json:"uid"`
 		Status string `json:"status"` // "accepted" atau "denied"
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -22,7 +20,11 @@ func HandleAdminVerifySeller(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validasi status
+	// Validasi input
+	if request.UID == "" {
+		http.Error(w, "UID is required", http.StatusBadRequest)
+		return
+	}
 	if request.Status != "accepted" && request.Status != "denied" {
 		http.Error(w, "Invalid status", http.StatusBadRequest)
 		return
@@ -36,7 +38,7 @@ func HandleAdminVerifySeller(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ambil data pengajuan
-	ref := client.NewRef("registerSellers/" + uid)
+	ref := client.NewRef("registerSellers/" + request.UID)
 	var registerSeller map[string]interface{}
 	if err := ref.Get(context.Background(), &registerSeller); err != nil {
 		http.Error(w, "RegisterSeller not found", http.StatusNotFound)
@@ -58,7 +60,7 @@ func HandleAdminVerifySeller(w http.ResponseWriter, r *http.Request) {
 
 	// Jika status "accepted", perbarui user menjadi verified
 	if request.Status == "accepted" {
-		userRef := client.NewRef("users/" + uid)
+		userRef := client.NewRef("users/" + request.UID)
 		if err := userRef.Update(context.Background(), map[string]interface{}{
 			"verified": true,
 		}); err != nil {

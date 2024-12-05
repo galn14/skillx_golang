@@ -65,6 +65,7 @@ func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
 			Name:     authUser.DisplayName,
 			Email:    authUser.Email,
 			PhotoURL: authUser.PhotoURL,
+			Role:     "buyer",
 		}
 
 		// Save the new user data in Firebase Database
@@ -88,6 +89,7 @@ func LoginWithGoogle(w http.ResponseWriter, r *http.Request) {
 			"organization": user.Organization,
 			"major":        user.Major,
 			"language":     user.Language,
+			"role":         user.Role,
 		},
 		"token": idToken,
 	})
