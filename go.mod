@@ -9,10 +9,7 @@ require (
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
 
-require (
-	github.com/gorilla/mux v1.8.1 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
-)
+require golang.org/x/crypto v0.29.0 // indirect
 
 require (
 	cel.dev/expr v0.16.1 // indirect

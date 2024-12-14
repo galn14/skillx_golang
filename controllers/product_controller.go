@@ -3,97 +3,82 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/models"
-	"golang-firebase-backend/services"
 	"golang-firebase-backend/utils"
 
 	"github.com/google/uuid"
 )
 
-// SearchProducts searches products based on query parameters
-// SearchProducts allows searching products using a JSON body
-func SearchProducts(w http.ResponseWriter, r *http.Request) {
-	// Retrieve the search term from query parameters
-	searchTerm := r.URL.Query().Get("title") // "title" is the search parameter
+func CreateProduct(w http.ResponseWriter, r *http.Request) {
+	var product models.Product
 
-	// If searchTerm is empty, return an error
-	if searchTerm == "" {
-		utils.RespondError(w, http.StatusBadRequest, "Search term is required")
+	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
+		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
 		return
 	}
 
-	// Split the search term into individual words (by spaces)
-	searchWords := strings.Fields(searchTerm)
-
-	// Initialize Firebase client
 	ctx := context.Background()
+
+	// Get authenticated user's UID from context
+	userID := r.Context().Value("uid").(string)
+
+	// Check if the user has the 'seller' role
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	// Reference the products node in Firebase
-	ref := client.NewRef("products")
-	var products map[string]models.Product
+	usersRef := client.NewRef("users/" + userID)
+	var user map[string]interface{}
 
-	// Retrieve all products from Firebase
-	if err := ref.Get(ctx, &products); err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
+	if err := usersRef.Get(ctx, &user); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch user information")
 		return
 	}
 
-	// Filter products based on the presence of each search word in NameProduct (case-insensitive)
-	var filteredProducts []models.Product
-	for _, product := range products {
-		// Initialize a flag to check if all words match
-		matches := true
-
-		// Check if each word in the search query exists in the product name
-		for _, word := range searchWords {
-			if !strings.Contains(strings.ToLower(product.NameProduct), strings.ToLower(word)) {
-				matches = false
-				break
-			}
-		}
-
-		// If the product matches all the words in the search query, add it to the result
-		if matches {
-			filteredProducts = append(filteredProducts, product)
-		}
-	}
-
-	// If no products match, return an empty list or a message
-	if len(filteredProducts) == 0 {
-		utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
-			"success": false,
-			"message": "No products found matching the search terms",
-			"data":    filteredProducts,
-		})
+	if role, ok := user["role"].(string); !ok || role != "seller" {
+		utils.RespondError(w, http.StatusForbidden, "Only sellers can create products")
 		return
 	}
 
-	// Respond with filtered products
-	utils.RespondJSON(w, http.StatusOK, filteredProducts)
+	// Set product fields
+	product.UID = uuid.New().String()
+	product.CreatedAt = time.Now()
+	product.UpdatedAt = time.Now()
+
+	// Save product under the user's node
+	ref := client.NewRef("products/" + userID + "/" + product.UID)
+	if err := ref.Set(ctx, &product); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to create product")
+		return
+	}
+
+	utils.RespondJSON(w, http.StatusCreated, map[string]interface{}{
+		"success": true,
+		"data":    product,
+		"message": "Product created successfully",
+	})
 }
 
-// FetchProducts retrieves all products
 func FetchProducts(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
+	// Get authenticated user's UID from context
+	userID := r.Context().Value("uid").(string)
+
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	ref := client.NewRef("products")
+	ref := client.NewRef("products/" + userID)
 	var products map[string]models.Product
 
 	if err := ref.Get(ctx, &products); err != nil {
@@ -110,113 +95,86 @@ func FetchProducts(w http.ResponseWriter, r *http.Request) {
 	utils.RespondJSON(w, http.StatusOK, productList)
 }
 
-// ViewProduct retrieves a specific product by ID
+// ViewProduct retrieves a specific product by user name and product name
 func ViewProduct(w http.ResponseWriter, r *http.Request) {
-	var requestBody struct {
-		UID string `json:"uid"`
-	}
+	// Get user name and product name from query parameters
+	userName := r.URL.Query().Get("name")
+	productName := r.URL.Query().Get("product_name")
 
-	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
-		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
-		return
-	}
-
-	if requestBody.UID == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "Product UID is required")
+	// Validate input parameters
+	if userName == "" || productName == "" {
+		utils.RespondError(w, http.StatusBadRequest, "User name and product name are required")
 		return
 	}
 
 	ctx := context.Background()
+
+	// Initialize Firebase client
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	ref := client.NewRef("products/" + requestBody.UID)
-	var product models.Product
+	// Reference the users node to find the user ID by name
+	usersRef := client.NewRef("users")
+	var users map[string]map[string]interface{}
 
-	if err := ref.Get(ctx, &product); err != nil {
+	// Retrieve all users
+	if err := usersRef.Get(ctx, &users); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch users")
+		return
+	}
+
+	// Find the user ID associated with the user name
+	var userID string
+	for id, user := range users {
+		if userNameDB, ok := user["name"].(string); ok && strings.EqualFold(userNameDB, userName) {
+			userID = id
+			break
+		}
+	}
+
+	// If no matching user is found, return an error
+	if userID == "" {
+		utils.RespondError(w, http.StatusNotFound, "User not found")
+		return
+	}
+
+	// Reference the products node for the specific user
+	productsRef := client.NewRef("products/" + userID)
+	var products map[string]models.Product
+
+	// Retrieve all products for the user
+	if err := productsRef.Get(ctx, &products); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
+		return
+	}
+
+	// Find the specific product by name
+	var product models.Product
+	var found bool
+	for _, p := range products {
+		if strings.EqualFold(p.NameProduct, productName) {
+			product = p
+			found = true
+			break
+		}
+	}
+
+	// If no matching product is found, return an error
+	if !found {
 		utils.RespondError(w, http.StatusNotFound, "Product not found")
 		return
 	}
 
-	product.UID = requestBody.UID
-	utils.RespondJSON(w, http.StatusOK, product)
-}
-
-func CreateProduct(w http.ResponseWriter, r *http.Request) {
-	var product models.Product
-
-	// Logging raw body data for debugging
-	log.Println("Decoding JSON input...")
-
-	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
-		log.Printf("Failed to decode input: %v", err)
-		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
-		return
-	}
-
-	log.Printf("Decoded Product Input: %+v", product)
-
-	ctx := context.Background()
-
-	// Get user ID from context
-	userID := r.Context().Value("uid").(string)
-	log.Printf("User ID: %s", userID)
-
-	// Fetch idMajor from seller role
-	idMajor, err := services.GetMajorBySeller(ctx, userID)
-	if err != nil {
-		log.Printf("Error fetching major for seller: %v", err)
-		utils.RespondError(w, http.StatusBadRequest, "User is not a seller or does not have a valid major")
-		return
-	}
-	product.IdMajor = idMajor
-	log.Printf("ID Major: %s", idMajor)
-
-	// Handle service validation
-	if product.IdService == "" && product.TitleService != "" {
-		idService, err := services.GetServiceIDByTitle(ctx, product.TitleService)
-		if err != nil || idService == "" {
-			log.Printf("Invalid titleService: %v", err)
-			utils.RespondError(w, http.StatusBadRequest, "Invalid or unregistered titleService")
-			return
-		}
-		product.IdService = idService
-		log.Printf("ID Service: %s", idService)
-	}
-
-	// Set timestamps
-	product.UID = uuid.New().String()
-	product.CreatedAt = time.Now()
-	product.UpdatedAt = time.Now()
-
-	// Save product to Firebase
-	client, err := config.Database(ctx)
-	if err != nil {
-		log.Printf("Failed to connect to Firebase Database: %v", err)
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
-		return
-	}
-
-	ref := client.NewRef("products/" + product.UID)
-	if err := ref.Set(ctx, &product); err != nil {
-		log.Printf("Failed to save product to Firebase: %v", err)
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to create product")
-		return
-	}
-
-	log.Println("Product created successfully")
-
-	utils.RespondJSON(w, http.StatusCreated, map[string]interface{}{
+	// Respond with the product datax
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    product,
-		"message": "Product created successfully",
 	})
 }
 
-// UpdateProduct updates an existing product
 func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		UID string `json:"uid"`
@@ -239,15 +197,15 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
+	userID := r.Context().Value("uid").(string)
+
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	ref := client.NewRef("products/" + requestBody.UID)
-
-	// Update timestamp
+	ref := client.NewRef("products/" + userID + "/" + requestBody.UID)
 	updatedProduct["updated_at"] = time.Now()
 
 	if err := ref.Update(ctx, updatedProduct); err != nil {
@@ -261,7 +219,6 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteProduct deletes a product by ID
 func DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		UID string `json:"uid"`
@@ -278,13 +235,15 @@ func DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
+	userID := r.Context().Value("uid").(string)
+
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	ref := client.NewRef("products/" + requestBody.UID)
+	ref := client.NewRef("products/" + userID + "/" + requestBody.UID)
 	if err := ref.Delete(ctx); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to delete product")
 		return
@@ -294,4 +253,77 @@ func DeleteProduct(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "Product deleted successfully",
 	})
+}
+
+func SearchProducts(w http.ResponseWriter, r *http.Request) {
+	searchTerm := r.URL.Query().Get("query")
+
+	if searchTerm == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Search term is required")
+		return
+	}
+
+	ctx := context.Background()
+	client, err := config.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Search users
+	usersRef := client.NewRef("users")
+	var users map[string]map[string]interface{}
+
+	if err := usersRef.Get(ctx, &users); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch users")
+		return
+	}
+
+	var matchingUsers []string
+	for id, user := range users {
+		if userName, ok := user["name"].(string); ok && strings.Contains(strings.ToLower(userName), strings.ToLower(searchTerm)) {
+			matchingUsers = append(matchingUsers, id)
+		}
+	}
+
+	// Search products
+	productsRef := client.NewRef("products")
+	var products map[string]map[string]models.Product
+
+	if err := productsRef.Get(ctx, &products); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
+		return
+	}
+
+	var filteredProducts []models.Product
+	for userID, userProducts := range products {
+		// Check if the user ID matches the search query
+		if contains(matchingUsers, userID) {
+			for _, product := range userProducts {
+				filteredProducts = append(filteredProducts, product)
+			}
+		}
+
+		// Check if the product name matches the search query
+		for _, product := range userProducts {
+			if strings.Contains(strings.ToLower(product.NameProduct), strings.ToLower(searchTerm)) {
+				filteredProducts = append(filteredProducts, product)
+			}
+		}
+	}
+
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    filteredProducts,
+	})
+}
+
+// Helper function to check if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
