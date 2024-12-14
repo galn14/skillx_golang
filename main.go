@@ -51,11 +51,9 @@ func main() {
 	mux.Handle("/user/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateUser)))
 	// message route
 
-	mux.Handle("/messages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMessages)))            // Fetch all messages
-	mux.Handle("/messages/show", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMessage)))         // Show a specific message (ID as query parameter)
-	mux.Handle("/messages/newChat", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMessage)))    // Create a new message
-	mux.Handle("/messages/updateChat", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateMessage))) // Update a message (ID as query parameter)
-	mux.Handle("/messages/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMessage)))     // Delete a message (ID as query parameter)
+	mux.Handle("/messages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMessages)))           // Fetch all messages
+	mux.Handle("/messages-send", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.SendMessage)))        // Fetch all messages
+	mux.Handle("/conversations", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchConversations))) // Fetch all conversations
 
 	//skill route
 	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
