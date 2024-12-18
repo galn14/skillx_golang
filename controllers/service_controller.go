@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"fmt"
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/models"
 	"golang-firebase-backend/utils"
@@ -34,24 +35,20 @@ func FetchServices(w http.ResponseWriter, r *http.Request) {
 		serviceList = append(serviceList, service)
 	}
 
-	// Respond with services including link and iconUrl
 	utils.RespondJSON(w, http.StatusOK, serviceList)
 }
 
-// Show a specific service
 func ShowService(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
-		Id string `json:"id"`
+		Id           string `json:"id,omitempty"`
+		TitleService string `json:"title_service,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
 		return
 	}
 
-	if requestBody.Id == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "Service ID is required")
-		return
-	}
+	fmt.Println("Request Body:", requestBody) // Log input JSON
 
 	ctx := context.Background()
 	client, err := config.FirebaseApp.Database(ctx)
@@ -60,37 +57,48 @@ func ShowService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var service models.Service
-	ref := client.NewRef("services/" + requestBody.Id)
-	if err := ref.Get(ctx, &service); err != nil {
-		utils.RespondError(w, http.StatusNotFound, "Service not found")
+	// Ambil semua layanan
+	var services map[string]models.Service
+	ref := client.NewRef("services")
+	if err := ref.Get(ctx, &services); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch services")
 		return
 	}
 
-	service.IdService = requestBody.Id
-	// Respond with service details including link and iconUrl
-	utils.RespondJSON(w, http.StatusOK, service)
+	fmt.Println("Fetched Services:", services) // Log data layanan yang diambil
+
+	// Cari layanan berdasarkan ID atau TitleService
+	for id, service := range services {
+		if requestBody.Id != "" && id == requestBody.Id {
+			service.IdService = id
+			utils.RespondJSON(w, http.StatusOK, service)
+			return
+		}
+		if requestBody.TitleService != "" && service.TitleService == requestBody.TitleService {
+			service.IdService = id
+			utils.RespondJSON(w, http.StatusOK, service)
+			return
+		}
+	}
+
+	utils.RespondError(w, http.StatusNotFound, "Service not found")
 }
 
-// Create a new service
 func CreateService(w http.ResponseWriter, r *http.Request) {
-	var service models.Service
-	if err := json.NewDecoder(r.Body).Decode(&service); err != nil {
+	var serviceInput struct {
+		TitleService  string `json:"title_service"`
+		IconUrl       string `json:"icon_url"`
+		TitleCategory string `json:"title_category"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&serviceInput); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
 		return
 	}
 
-	// Validate required fields
-	if service.TitleService == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleService is required")
-		return
-	}
-	if service.Link == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "Link is required")
-		return
-	}
-	if service.IconUrl == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "IconUrl is required")
+	// Validasi input
+	if serviceInput.TitleService == "" || serviceInput.IconUrl == "" || serviceInput.TitleCategory == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleService, IconUrl, and TitleCategory are required")
 		return
 	}
 
@@ -99,6 +107,34 @@ func CreateService(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
+	}
+
+	// Cari IdCategory berdasarkan TitleCategory
+	var categories map[string]models.Category
+	refCategories := client.NewRef("categories")
+	if err := refCategories.Get(ctx, &categories); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch categories")
+		return
+	}
+
+	var idCategory string
+	for id, category := range categories {
+		if category.Title == serviceInput.TitleCategory {
+			idCategory = id
+			break
+		}
+	}
+
+	if idCategory == "" {
+		utils.RespondError(w, http.StatusBadRequest, "TitleCategory not found")
+		return
+	}
+
+	// Buat service
+	service := models.Service{
+		TitleService: serviceInput.TitleService,
+		IconUrl:      serviceInput.IconUrl,
+		IdCategory:   idCategory,
 	}
 
 	id := uuid.New().String()
@@ -109,7 +145,6 @@ func CreateService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	service.IdService = id
-	// Respond with success and service details
 	utils.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
 		"data":    service,

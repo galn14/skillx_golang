@@ -41,18 +41,13 @@ func FetchMajors(w http.ResponseWriter, r *http.Request) {
 	utils.RespondJSON(w, http.StatusOK, majorList)
 }
 
-// Show a specific major
 func ShowMajor(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
-		Id string `json:"idMajor"`
+		TitleMajor string `json:"title_major,omitempty"`
+		IdMajor    string `json:"id_major,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
-		return
-	}
-
-	if requestBody.Id == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "Major ID is required")
 		return
 	}
 
@@ -63,15 +58,82 @@ func ShowMajor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var major models.Major
-	ref := client.NewRef("majors/" + requestBody.Id)
-	if err := ref.Get(ctx, &major); err != nil {
+	// Fetch all majors
+	var majors map[string]models.Major
+	refMajors := client.NewRef("majors")
+	if err := refMajors.Get(ctx, &majors); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch majors")
+		return
+	}
+
+	// Find the matching major
+	var matchedMajor models.Major
+	var found bool
+	var majorId string
+
+	for id, major := range majors {
+		if requestBody.IdMajor != "" && id == requestBody.IdMajor {
+			matchedMajor = major
+			matchedMajor.IdMajor = id
+			majorId = id
+			found = true
+			break
+		}
+		if requestBody.TitleMajor != "" && major.TitleMajor == requestBody.TitleMajor {
+			matchedMajor = major
+			matchedMajor.IdMajor = id
+			majorId = id
+			found = true
+			break
+		}
+	}
+
+	if !found {
 		utils.RespondError(w, http.StatusNotFound, "Major not found")
 		return
 	}
 
-	major.IdMajor = requestBody.Id
-	utils.RespondJSON(w, http.StatusOK, major)
+	// Fetch all categories related to the major
+	var categories map[string]models.Category
+	refCategories := client.NewRef("categories")
+	if err := refCategories.Get(ctx, &categories); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch categories")
+		return
+	}
+
+	var relatedCategories []map[string]interface{}
+	for categoryId, category := range categories {
+		if category.IdMajor == majorId {
+			// Fetch all services related to the current category
+			var services map[string]models.Service
+			refServices := client.NewRef("services")
+			if err := refServices.Get(ctx, &services); err != nil {
+				utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch services")
+				return
+			}
+
+			var relatedServices []models.Service
+			for _, service := range services {
+				if service.IdCategory == categoryId {
+					relatedServices = append(relatedServices, service)
+				}
+			}
+
+			// Append category and its services
+			relatedCategories = append(relatedCategories, map[string]interface{}{
+				"category": category,
+				"services": relatedServices,
+			})
+		}
+	}
+
+	// Respond with major, categories, and services
+	response := map[string]interface{}{
+		"major":      matchedMajor,
+		"categories": relatedCategories,
+	}
+
+	utils.RespondJSON(w, http.StatusOK, response)
 }
 
 // Create a new major
@@ -82,8 +144,8 @@ func CreateMajor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if major.TitleMajor == "" || major.IconUrl == "" || major.Link == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleMajor, IconUrl, and Link are required")
+	if major.TitleMajor == "" || major.IconUrl == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "TitleMajor and IconUrl are required")
 		return
 	}
 
