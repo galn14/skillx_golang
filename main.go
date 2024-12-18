@@ -72,7 +72,7 @@ func main() {
 	mux.Handle("/user/portfolios/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeletePortfolio)))
 
 	// Major routes
-	mux.Handle("/majors/adminfetch", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMajors)))  // Fetch all majors
+	mux.Handle("/majors", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMajors)))             // Fetch all majors
 	mux.Handle("/majors/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMajor))) // Create a new major
 	mux.Handle("/majors/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMajor)))     // Update a major
 	mux.Handle("/majors/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMajor))) // Delete a major
@@ -82,6 +82,11 @@ func main() {
 	mux.Handle("/services/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowService)))     // Create a new major
 	mux.Handle("/services/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateService))) // Update a major
 	mux.Handle("/services/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteService))) // Delete a major
+
+	mux.Handle("/category", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchCategories)))            // Fetch all majors
+	mux.Handle("/category/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowCategory)))     // Create a new major
+	mux.Handle("/category/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateCategory))) // Update a major
+	mux.Handle("/category/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteCategory))) // Delete a major
 
 	mux.Handle("/products", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchProducts)))
 	mux.Handle("/products/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewProduct)))
