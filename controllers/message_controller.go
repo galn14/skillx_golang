@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"golang-firebase-backend/config"
 	"golang-firebase-backend/models"
 	"golang-firebase-backend/utils"
@@ -12,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Generate unique conversation ID
+// Generate conversation key based on user IDs
 func generateConversationID(user1, user2 string) string {
 	if user1 < user2 {
 		return user1 + "_" + user2
@@ -20,35 +21,66 @@ func generateConversationID(user1, user2 string) string {
 	return user2 + "_" + user1
 }
 
-// Fetch all conversations for a user
+// FetchConversations fetches all conversations for a given user
 func FetchConversations(w http.ResponseWriter, r *http.Request) {
-	uid := r.Context().Value("uid")
-	if uid == nil {
-		utils.RespondError(w, http.StatusUnauthorized, "Unauthorized access")
+	// Get user ID from query parameters
+	userId := r.URL.Query().Get("userId")
+	if userId == "" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
 		return
 	}
 
+	// Initialize Firebase database
 	ctx := context.Background()
-	client, err := config.Database(ctx)
+	dbClient, err := config.Database(ctx)
 	if err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		http.Error(w, fmt.Sprintf("Error initializing Firebase database: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	var conversations map[string]models.Conversation
-	ref := client.NewRef("conversations")
-	if err := ref.OrderByChild("participants").EqualTo(uid.(string)).Get(ctx, &conversations); err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch conversations")
+	// Fetch all conversations from Firebase
+	ref := dbClient.NewRef("conversations")
+	var allConversations map[string]map[string]interface{}
+	err = ref.Get(ctx, &allConversations)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error fetching conversations: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+	// Filter conversations where the user is a participant
+	var userConversations []map[string]interface{}
+	for conversationID, conversation := range allConversations {
+		// Check if participants exist and include the user
+		participants, ok := conversation["participants"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, participant := range participants {
+			if participant == userId {
+				// Add conversation to the result
+				conversation["id"] = conversationID // Include the conversation ID in the response
+				userConversations = append(userConversations, conversation)
+				break
+			}
+		}
+	}
+
+	// Return the filtered conversations
+	w.Header().Set("Content-Type", "application/json")
+	if len(userConversations) == 0 {
+		http.Error(w, "No conversations found for user", http.StatusNotFound)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"data":    conversations,
-	})
+		"data":    userConversations,
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
+	}
 }
 
-// Fetch messages in a conversation
+// FetchMessages fetches all messages in a conversation
 func FetchMessages(w http.ResponseWriter, r *http.Request) {
 	uid := r.Context().Value("uid")
 	if uid == nil {
@@ -62,6 +94,7 @@ func FetchMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Initialize Firebase database
 	ctx := context.Background()
 	client, err := config.Database(ctx)
 	if err != nil {
@@ -88,7 +121,7 @@ func FetchMessages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Send a new message
+// SendMessage sends a new message in a conversation
 func SendMessage(w http.ResponseWriter, r *http.Request) {
 	uid := r.Context().Value("uid")
 	if uid == nil {
@@ -108,6 +141,7 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	conversationID := generateConversationID(message.SenderID, message.ReceiverID)
 
+	// Initialize Firebase database
 	ctx := context.Background()
 	client, err := config.Database(ctx)
 	if err != nil {
@@ -122,10 +156,15 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update conversation
+	// Update conversation with the latest message
 	convRef := client.NewRef("conversations/" + conversationID)
 	if err := convRef.Set(ctx, map[string]interface{}{
-		"lastMessage":  message,
+		"lastMessageId": messageID,
+		"lastMessage": map[string]interface{}{
+			"senderID":       message.SenderID,
+			"messageContent": message.MessageContent,
+			"timestamp":      message.Timestamp,
+		},
 		"participants": []string{message.SenderID, message.ReceiverID},
 		"updatedAt":    time.Now(),
 	}); err != nil {

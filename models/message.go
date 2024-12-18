@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-// Message represents a message entity
 type Message struct {
 	ID             string    `json:"id"`
 	SenderID       string    `json:"senderID"`
