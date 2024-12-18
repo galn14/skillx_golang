@@ -74,6 +74,53 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondJSON(w, http.StatusOK, response)
 }
+func FetchUserByUID(w http.ResponseWriter, r *http.Request) {
+	// Extract UID from the request query parameters
+	uid := r.URL.Query().Get("uid")
+	if uid == "" {
+		utils.RespondError(w, http.StatusBadRequest, "UID is required")
+		return
+	}
+
+	// Initialize Firebase Realtime Database
+	ctx := context.Background()
+	dbClient, err := config.FirebaseApp.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Retrieve user data from Firebase
+	var user models.User
+	userRef := dbClient.NewRef("users/" + uid)
+	if err := userRef.Get(ctx, &user); err != nil {
+		utils.RespondError(w, http.StatusNotFound, "User not found")
+		return
+	}
+
+	// Prepare the response data
+	response := map[string]interface{}{
+		"uid":          user.UID,
+		"name":         user.Name,
+		"email":        user.Email,
+		"organization": user.Organization,
+		"major":        user.Major,
+		"language":     user.Language,
+		"photo_url":    user.PhotoURL,
+		"verified":     user.Verified,
+		"role":         user.Role,
+		"created_at":   user.CreatedAt,
+		"last_sign_in": func() interface{} {
+			if user.LastSignIn.IsZero() {
+				return nil
+			}
+			return user.LastSignIn
+		}(),
+	}
+
+	// Send the response back to the frontend
+	utils.RespondJSON(w, http.StatusOK, response)
+}
 
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request on %s", r.URL.Path)
