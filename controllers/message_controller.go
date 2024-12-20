@@ -23,10 +23,9 @@ func generateConversationID(user1, user2 string) string {
 
 // FetchConversations fetches all conversations for a given user
 func FetchConversations(w http.ResponseWriter, r *http.Request) {
-	// Get user ID from query parameters
-	userId := r.URL.Query().Get("userId")
-	if userId == "" {
-		http.Error(w, "User ID is required", http.StatusBadRequest)
+	uid := r.Context().Value("uid")
+	if uid == nil {
+		utils.RespondError(w, http.StatusUnauthorized, "Unauthorized access")
 		return
 	}
 
@@ -56,7 +55,7 @@ func FetchConversations(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, participant := range participants {
-			if participant == userId {
+			if participant == uid {
 				// Add conversation to the result
 				conversation["id"] = conversationID // Include the conversation ID in the response
 				userConversations = append(userConversations, conversation)
@@ -175,5 +174,9 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 	utils.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 		"success": true,
 		"message": "Message sent successfully",
+		"data": map[string]string{
+			"id": messageID, // ID unik dari pesan yang baru dikirim
+		},
 	})
+
 }
