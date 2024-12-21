@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -14,45 +15,117 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreateProduct(w http.ResponseWriter, r *http.Request) {
-	var product models.Product
+// Fungsi untuk mencocokkan string tanpa case sensitivity
+func matchStringsIgnoreCase(str1, str2 string) bool {
+	return strings.TrimSpace(strings.ToLower(str1)) == strings.TrimSpace(strings.ToLower(str2))
+}
 
-	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
+func CreateProduct(w http.ResponseWriter, r *http.Request) {
+	var productInput struct {
+		NameProduct string   `json:"nameProduct"`
+		Description string   `json:"description"`
+		PhotoURL    []string `json:"photo_url"`
+		Price       string   `json:"price"`
+		IdCategory  string   `json:"idCategory"`
+		IdService   string   `json:"idService"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&productInput); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
 		return
 	}
 
 	ctx := context.Background()
-
-	// Get authenticated user's UID from context
 	userID := r.Context().Value("uid").(string)
 
-	// Check if the user has the 'seller' role
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	usersRef := client.NewRef("users/" + userID)
-	var user map[string]interface{}
-
-	if err := usersRef.Get(ctx, &user); err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch user information")
+	// Fetch seller data
+	sellerRef := client.NewRef("registerSellers/" + userID)
+	var seller models.RegisterSeller
+	if err := sellerRef.Get(ctx, &seller); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch seller information")
 		return
 	}
 
-	if role, ok := user["role"].(string); !ok || role != "seller" {
-		utils.RespondError(w, http.StatusForbidden, "Only sellers can create products")
+	// Ambil Major dari seller
+	majorName := seller.Major
+	if majorName == "" {
+		utils.RespondError(w, http.StatusForbidden, "Seller must have a valid Major in registerSellers")
 		return
 	}
 
-	// Set product fields
-	product.UID = uuid.New().String()
-	product.CreatedAt = time.Now()
-	product.UpdatedAt = time.Now()
+	// Fetch Majors
+	majorsRef := client.NewRef("majors")
+	var majors map[string]models.Major
+	if err := majorsRef.Get(ctx, &majors); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch majors")
+		return
+	}
 
-	// Save product under the user's node
+	var majorID string
+	for id, major := range majors {
+		if strings.EqualFold(major.TitleMajor, majorName) {
+			majorID = id
+			break
+		}
+	}
+
+	if majorID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "No matching Major ID found for seller's Major")
+		return
+	}
+
+	// Fetch Categories
+	categoriesRef := client.NewRef("categories/" + productInput.IdCategory)
+	var category models.Category
+	if err := categoriesRef.Get(ctx, &category); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch category")
+		return
+	}
+
+	// Validate Category
+	if category.IdMajor != majorID {
+		fmt.Printf("Category Major Mismatch: Category ID Major: %s, Expected Major ID: %s\n", category.IdMajor, majorID)
+		utils.RespondError(w, http.StatusBadRequest, "Selected Category is not part of the seller's Major")
+		return
+	}
+
+	// Fetch Services
+	servicesRef := client.NewRef("services/" + productInput.IdService)
+	var service models.Service
+	if err := servicesRef.Get(ctx, &service); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch service")
+		return
+	}
+
+	// Debug service data
+
+	// Validate Service
+	if service.IdCategory != productInput.IdCategory {
+		fmt.Printf("Service-Category Mismatch: Service ID Category: %s, Provided Category ID: %s\n", service.IdCategory, productInput.IdCategory)
+		utils.RespondError(w, http.StatusBadRequest, "Selected Service is not part of the chosen Category")
+		return
+	}
+
+	// Buat produk
+	product := models.Product{
+		UID:         uuid.New().String(),
+		NameProduct: productInput.NameProduct,
+		Description: productInput.Description,
+		PhotoURL:    productInput.PhotoURL,
+		Price:       productInput.Price,
+		Major:       majorName,
+		IdCategory:  productInput.IdCategory,
+		IdService:   productInput.IdService,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
 	ref := client.NewRef("products/" + userID + "/" + product.UID)
 	if err := ref.Set(ctx, &product); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to create product")
@@ -68,8 +141,6 @@ func CreateProduct(w http.ResponseWriter, r *http.Request) {
 
 func FetchProducts(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-
-	// Get authenticated user's UID from context
 	userID := r.Context().Value("uid").(string)
 
 	client, err := config.Database(ctx)
@@ -78,10 +149,9 @@ func FetchProducts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref := client.NewRef("products/" + userID)
+	productsRef := client.NewRef("products/" + userID)
 	var products map[string]models.Product
-
-	if err := ref.Get(ctx, &products); err != nil {
+	if err := productsRef.Get(ctx, &products); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
 		return
 	}
@@ -92,66 +162,64 @@ func FetchProducts(w http.ResponseWriter, r *http.Request) {
 		productList = append(productList, product)
 	}
 
-	utils.RespondJSON(w, http.StatusOK, productList)
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    productList,
+	})
 }
 
-// ViewProduct retrieves a specific product by user name and product name
 func ViewProduct(w http.ResponseWriter, r *http.Request) {
-	// Get user name and product name from query parameters
+	// Mengambil query parameter
 	userName := r.URL.Query().Get("name")
 	productName := r.URL.Query().Get("product_name")
 
-	// Validate input parameters
+	// Validasi input parameter
 	if userName == "" || productName == "" {
-		utils.RespondError(w, http.StatusBadRequest, "User name and product name are required")
+		utils.RespondError(w, http.StatusBadRequest, "Both 'name' and 'product_name' query parameters are required")
 		return
 	}
 
 	ctx := context.Background()
-
-	// Initialize Firebase client
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	// Reference the users node to find the user ID by name
-	usersRef := client.NewRef("users")
-	var users map[string]map[string]interface{}
+	// Referensi ke registerSellers untuk mendapatkan UID pengguna berdasarkan nama
+	sellersRef := client.NewRef("registerSellers")
+	var sellers map[string]models.RegisterSeller
 
-	// Retrieve all users
-	if err := usersRef.Get(ctx, &users); err != nil {
-		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch users")
+	if err := sellersRef.Get(ctx, &sellers); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch sellers")
 		return
 	}
 
-	// Find the user ID associated with the user name
+	// Mencari UID pengguna berdasarkan nama
 	var userID string
-	for id, user := range users {
-		if userNameDB, ok := user["name"].(string); ok && strings.EqualFold(userNameDB, userName) {
+	for id, seller := range sellers {
+		if strings.EqualFold(seller.Name, userName) {
 			userID = id
 			break
 		}
 	}
 
-	// If no matching user is found, return an error
+	// Jika pengguna tidak ditemukan
 	if userID == "" {
 		utils.RespondError(w, http.StatusNotFound, "User not found")
 		return
 	}
 
-	// Reference the products node for the specific user
+	// Referensi ke produk berdasarkan UID pengguna
 	productsRef := client.NewRef("products/" + userID)
 	var products map[string]models.Product
 
-	// Retrieve all products for the user
 	if err := productsRef.Get(ctx, &products); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products")
 		return
 	}
 
-	// Find the specific product by name
+	// Mencari produk berdasarkan nama
 	var product models.Product
 	var found bool
 	for _, p := range products {
@@ -162,13 +230,13 @@ func ViewProduct(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// If no matching product is found, return an error
+	// Jika produk tidak ditemukan
 	if !found {
 		utils.RespondError(w, http.StatusNotFound, "Product not found")
 		return
 	}
 
-	// Respond with the product datax
+	// Mengembalikan respons produk
 	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    product,
@@ -176,22 +244,25 @@ func ViewProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateProduct(w http.ResponseWriter, r *http.Request) {
-	var requestBody struct {
-		UID string `json:"uid"`
-	}
+	// Ambil UID dari query parameter
+	productUID := r.URL.Query().Get("uid")
 
-	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
-		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
+	// Validasi UID
+	if productUID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Product UID is required in query parameter")
 		return
 	}
 
-	if requestBody.UID == "" {
-		utils.RespondError(w, http.StatusUnprocessableEntity, "Product UID is required")
-		return
+	// Ambil data yang ingin diperbarui dari body request
+	var updateInput struct {
+		Description string   `json:"description,omitempty"`
+		PhotoURL    []string `json:"photo_url,omitempty"`
+		Price       string   `json:"price,omitempty"`
+		IdCategory  string   `json:"idCategory,omitempty"`
+		IdService   string   `json:"idService,omitempty"`
 	}
 
-	var updatedProduct map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&updatedProduct); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&updateInput); err != nil {
 		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
 		return
 	}
@@ -205,10 +276,54 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref := client.NewRef("products/" + userID + "/" + requestBody.UID)
-	updatedProduct["updated_at"] = time.Now()
+	// Ambil produk yang ada berdasarkan UID
+	productRef := client.NewRef("products/" + userID + "/" + productUID)
+	var existingProduct models.Product
+	if err := productRef.Get(ctx, &existingProduct); err != nil {
+		utils.RespondError(w, http.StatusNotFound, "Product not found")
+		return
+	}
 
-	if err := ref.Update(ctx, updatedProduct); err != nil {
+	// Validasi dan update hanya field yang diperbolehkan
+	updates := map[string]interface{}{}
+	if updateInput.Description != "" {
+		updates["description"] = updateInput.Description
+	}
+	if updateInput.PhotoURL != nil {
+		updates["photo_url"] = updateInput.PhotoURL
+	}
+	if updateInput.Price != "" {
+		updates["price"] = updateInput.Price
+	}
+	if updateInput.IdCategory != "" {
+		// Validasi kategori baru
+		categoryRef := client.NewRef("categories/" + updateInput.IdCategory)
+		var category models.Category
+		if err := categoryRef.Get(ctx, &category); err != nil {
+			utils.RespondError(w, http.StatusBadRequest, "Invalid category ID")
+			return
+		}
+		updates["idCategory"] = updateInput.IdCategory
+	}
+	if updateInput.IdService != "" {
+		// Validasi layanan baru
+		serviceRef := client.NewRef("services/" + updateInput.IdService)
+		var service models.Service
+		if err := serviceRef.Get(ctx, &service); err != nil {
+			utils.RespondError(w, http.StatusBadRequest, "Invalid service ID")
+			return
+		}
+		if service.IdCategory != updateInput.IdCategory {
+			utils.RespondError(w, http.StatusBadRequest, "Service does not belong to the selected category")
+			return
+		}
+		updates["idService"] = updateInput.IdService
+	}
+
+	updates["updated_at"] = time.Now()
+
+	// Terapkan pembaruan
+	if err := productRef.Update(ctx, updates); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to update product")
 		return
 	}
@@ -243,8 +358,8 @@ func DeleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ref := client.NewRef("products/" + userID + "/" + requestBody.UID)
-	if err := ref.Delete(ctx); err != nil {
+	productRef := client.NewRef("products/" + userID + "/" + requestBody.UID)
+	if err := productRef.Delete(ctx); err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to delete product")
 		return
 	}

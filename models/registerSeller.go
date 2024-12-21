@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-type registerSeller struct {
+type RegisterSeller struct {
 	UID             string    `json:"uid"`
 	Name            string    `json:"name"`         // nama mahasiswa
 	Status          string    `json:"status"`       // "pending", "denied", "accepted"
