@@ -57,6 +57,7 @@ func main() {
 	mux.Handle("/messages", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMessages)))           // Fetch all messages
 	mux.Handle("/messages-send", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.SendMessage)))        // Fetch all messages
 	mux.Handle("/conversations", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchConversations))) // Fetch all conversations
+	mux.Handle("/new-chatroom", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateChatRoom)))
 
 	//skill route
 	mux.HandleFunc("/skills/fetch", controllers.FetchSkills)
