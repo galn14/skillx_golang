@@ -241,3 +241,57 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.RespondJSON(w, http.StatusOK, response)
 }
+
+func SearchUsersByName(w http.ResponseWriter, r *http.Request) {
+	// Get the search term from query parameters
+	searchTerm := r.URL.Query().Get("query")
+	if searchTerm == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Search term is required")
+		return
+	}
+
+	ctx := context.Background()
+
+	// Initialize Firebase Realtime Database
+	client, err := config.FirebaseApp.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Reference to users node in the database
+	usersRef := client.NewRef("users")
+	var users map[string]models.User
+
+	// Fetch all users from the database
+	if err := usersRef.Get(ctx, &users); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch users")
+		return
+	}
+
+	// Filter users based on the search term
+	var matchingUsers []map[string]interface{}
+	for id, user := range users {
+		if strings.Contains(strings.ToLower(user.Name), strings.ToLower(searchTerm)) {
+			matchingUsers = append(matchingUsers, map[string]interface{}{
+				"uid":          id,
+				"name":         user.Name,
+				"email":        user.Email,
+				"organization": user.Organization,
+				"major":        user.Major,
+				"language":     user.Language,
+				"photo_url":    user.PhotoURL,
+				"verified":     user.Verified,
+				"role":         user.Role,
+				"created_at":   user.CreatedAt,
+				"last_sign_in": user.LastSignIn,
+			})
+		}
+	}
+
+	// Respond with matching users
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"users":   matchingUsers,
+	})
+}
