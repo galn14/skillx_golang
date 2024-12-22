@@ -78,17 +78,20 @@ func main() {
 	mux.Handle("/majors/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateMajor))) // Create a new major
 	mux.Handle("/majors/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowMajor)))     // Update a major
 	mux.Handle("/majors/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteMajor))) // Delete a major
+	mux.Handle("/majors/adminupdate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateMajor))) // Update a major
 
 	// Major routes
 	mux.Handle("/services", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchServices)))             // Fetch all majors
 	mux.Handle("/services/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowService)))     // Create a new major
 	mux.Handle("/services/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateService))) // Update a major
 	mux.Handle("/services/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteService))) // Delete a major
+	mux.Handle("/services/adminupdate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateService))) // Update a service
 
-	mux.Handle("/category", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchCategories)))            // Fetch all majors
-	mux.Handle("/category/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowCategory)))     // Create a new major
-	mux.Handle("/category/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateCategory))) // Update a major
-	mux.Handle("/category/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteCategory))) // Delete a major
+	mux.Handle("/category", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchCategories)))              // Fetch all majors
+	mux.Handle("/category/adminshow", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ShowCategory)))       // Create a new major
+	mux.Handle("/category/admincreate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateCategory)))   // Update a major
+	mux.Handle("/category/admindelete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteCategory)))   // Delete a major
+	mux.Handle("/categories/adminupdate", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateCategory))) // Update a category
 
 	mux.Handle("/products", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchProducts)))
 	mux.Handle("/products/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewProduct)))

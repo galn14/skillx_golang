@@ -185,3 +185,86 @@ func DeleteService(w http.ResponseWriter, r *http.Request) {
 		"message": "Service deleted successfully",
 	})
 }
+
+// Update an existing service
+func UpdateService(w http.ResponseWriter, r *http.Request) {
+	// Get id_service from query parameters
+	idService := r.URL.Query().Get("id_service")
+	if idService == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "Service ID is required")
+		return
+	}
+
+	var requestBody struct {
+		TitleService  string `json:"title_service,omitempty"`
+		IconUrl       string `json:"icon_url,omitempty"`
+		TitleCategory string `json:"title_category,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	ctx := context.Background()
+	client, err := config.FirebaseApp.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Reference to the specific service
+	ref := client.NewRef("services/" + idService)
+
+	// Check if the service exists
+	var existingService models.Service
+	if err := ref.Get(ctx, &existingService); err != nil {
+		utils.RespondError(w, http.StatusNotFound, "Service not found")
+		return
+	}
+
+	// Update fields if provided
+	if requestBody.TitleService != "" {
+		existingService.TitleService = requestBody.TitleService
+	}
+	if requestBody.IconUrl != "" {
+		existingService.IconUrl = requestBody.IconUrl
+	}
+
+	// Update category if TitleCategory is provided
+	if requestBody.TitleCategory != "" {
+		// Fetch categories to find the corresponding ID
+		var categories map[string]models.Category
+		refCategories := client.NewRef("categories")
+		if err := refCategories.Get(ctx, &categories); err != nil {
+			utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch categories")
+			return
+		}
+
+		var idCategory string
+		for id, category := range categories {
+			if category.Title == requestBody.TitleCategory {
+				idCategory = id
+				break
+			}
+		}
+
+		if idCategory == "" {
+			utils.RespondError(w, http.StatusBadRequest, "TitleCategory not found")
+			return
+		}
+
+		existingService.IdCategory = idCategory
+	}
+
+	// Save updated service back to Firebase
+	if err := ref.Set(ctx, &existingService); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to update service")
+		return
+	}
+
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    existingService,
+		"message": "Service updated successfully",
+	})
+}

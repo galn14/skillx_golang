@@ -171,3 +171,63 @@ func DeleteCategory(w http.ResponseWriter, r *http.Request) {
 		"message": "Category deleted successfully",
 	})
 }
+
+// Update an existing category
+func UpdateCategory(w http.ResponseWriter, r *http.Request) {
+	// Get id_category from query parameters
+	idCategory := r.URL.Query().Get("id_category")
+	if idCategory == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "Category ID is required")
+		return
+	}
+
+	var requestBody struct {
+		Title    string `json:"title,omitempty"`
+		PhotoUrl string `json:"photo_url,omitempty"`
+		IdMajor  string `json:"id_major,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	ctx := context.Background()
+	client, err := config.FirebaseApp.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Reference to the specific category
+	ref := client.NewRef("categories/" + idCategory)
+
+	// Check if the category exists
+	var existingCategory models.Category
+	if err := ref.Get(ctx, &existingCategory); err != nil {
+		utils.RespondError(w, http.StatusNotFound, "Category not found")
+		return
+	}
+
+	// Update fields if provided
+	if requestBody.Title != "" {
+		existingCategory.Title = requestBody.Title
+	}
+	if requestBody.PhotoUrl != "" {
+		existingCategory.PhotoUrl = requestBody.PhotoUrl
+	}
+	if requestBody.IdMajor != "" {
+		existingCategory.IdMajor = requestBody.IdMajor
+	}
+
+	// Save updated category back to Firebase
+	if err := ref.Set(ctx, &existingCategory); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to update category")
+		return
+	}
+
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    existingCategory,
+		"message": "Category updated successfully",
+	})
+}

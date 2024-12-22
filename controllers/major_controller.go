@@ -204,3 +204,58 @@ func DeleteMajor(w http.ResponseWriter, r *http.Request) {
 		"message": "Major deleted successfully",
 	})
 }
+
+func UpdateMajor(w http.ResponseWriter, r *http.Request) {
+	// Get id_major from query parameters
+	idMajor := r.URL.Query().Get("id_major")
+	if idMajor == "" {
+		utils.RespondError(w, http.StatusUnprocessableEntity, "Major ID is required")
+		return
+	}
+
+	var requestBody struct {
+		TitleMajor string `json:"title_major,omitempty"`
+		IconUrl    string `json:"icon_url,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		utils.RespondError(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	ctx := context.Background()
+	client, err := config.FirebaseApp.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Reference to the specific major using Firebase key
+	ref := client.NewRef("majors/" + idMajor)
+
+	// Check if the major exists
+	var existingMajor models.Major
+	if err := ref.Get(ctx, &existingMajor); err != nil {
+		utils.RespondError(w, http.StatusNotFound, "Major not found")
+		return
+	}
+
+	// Update fields if provided
+	if requestBody.TitleMajor != "" {
+		existingMajor.TitleMajor = requestBody.TitleMajor
+	}
+	if requestBody.IconUrl != "" {
+		existingMajor.IconUrl = requestBody.IconUrl
+	}
+
+	// Save updated major back to Firebase
+	if err := ref.Set(ctx, &existingMajor); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to update major")
+		return
+	}
+
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    existingMajor,
+		"message": "Major updated successfully",
+	})
+}
