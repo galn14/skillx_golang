@@ -13,6 +13,7 @@ import (
 )
 
 // SearchController handles searching for users and products
+// SearchController handles searching for users and products
 func SearchController(w http.ResponseWriter, r *http.Request) {
 	// Get the search term from query parameters
 	searchTerm := r.URL.Query().Get("query")
@@ -66,7 +67,7 @@ func searchUsers(ctx context.Context, client *db.Client, searchTerm string) ([]m
 	for id, user := range users {
 		if strings.Contains(strings.ToLower(user.Name), searchTerm) {
 			matchingUsers = append(matchingUsers, map[string]interface{}{
-				"uid":          id,
+				"id":           id, // Include the user ID here
 				"name":         user.Name,
 				"email":        user.Email,
 				"organization": user.Organization,
@@ -95,7 +96,7 @@ func searchProducts(ctx context.Context, client *db.Client, searchTerm string, m
 
 	userIDs := make(map[string]bool)
 	for _, user := range matchingUsers {
-		if uid, ok := user["uid"].(string); ok {
+		if uid, ok := user["id"].(string); ok {
 			userIDs[uid] = true
 		}
 	}
