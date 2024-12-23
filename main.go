@@ -51,6 +51,10 @@ func main() {
 	mux.Handle("/user/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateUser)))
 	mux.Handle("/user", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchUserByUID)))
 	mux.Handle("/user-search", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.SearchUsersByName)))
+
+	mux.Handle("/update-aboutme", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleUpdateAboutMe)))
+	mux.Handle("/seller-byid", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleGetUserAndSellerDataByQuery)))
+
 	// message route
 	mux.Handle("/searchAll", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.SearchController)))
 
