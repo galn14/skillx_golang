@@ -284,32 +284,42 @@ func ViewProduct(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func ViewProductByUID(w http.ResponseWriter, r *http.Request) {
-	// Ambil `uid` dari query parameter
-	productUID := r.URL.Query().Get("uid")
-	if productUID == "" {
-		utils.RespondError(w, http.StatusBadRequest, "Product UID is required")
+func ViewProductByID(w http.ResponseWriter, r *http.Request) {
+	// Mengambil query parameter
+	userID := r.URL.Query().Get("user_id")
+	productID := r.URL.Query().Get("product_id")
+
+	// Validasi input parameter
+	if userID == "" || productID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Both 'user_id' and 'product_id' query parameters are required")
 		return
 	}
 
+	// Membuat konteks dan inisialisasi database
 	ctx := context.Background()
-	userID := r.Context().Value("uid").(string) // Mengambil UID pengguna dari konteks
-
 	client, err := config.Database(ctx)
 	if err != nil {
 		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
 		return
 	}
 
-	// Referensi ke produk berdasarkan UID pengguna dan UID produk
-	productRef := client.NewRef("products/" + userID + "/" + productUID)
+	// Referensi ke produk berdasarkan userID dan productID
+	productRef := client.NewRef(fmt.Sprintf("products/%s/%s", userID, productID))
 	var product models.Product
+
+	// Mendapatkan data produk dari Firebase
 	if err := productRef.Get(ctx, &product); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch product")
+		return
+	}
+
+	// Jika produk tidak ditemukan
+	if product.NameProduct == "" {
 		utils.RespondError(w, http.StatusNotFound, "Product not found")
 		return
 	}
 
-	// Kirimkan detail produk sebagai respons
+	// Mengembalikan respons produk
 	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    product,
