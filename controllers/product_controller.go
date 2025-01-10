@@ -168,6 +168,47 @@ func FetchProducts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func FetchProductsByUserID(w http.ResponseWriter, r *http.Request) {
+	// Ambil `userID` dari query parameter
+	userID := r.URL.Query().Get("uid")
+	if userID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "User ID is required")
+		return
+	}
+
+	ctx := context.Background()
+
+	// Inisialisasi koneksi ke Firebase Database
+	client, err := config.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Referensi ke produk berdasarkan `userID`
+	productsRef := client.NewRef("products/" + userID)
+	var products map[string]models.Product
+
+	// Ambil semua produk dari userID yang diberikan
+	if err := productsRef.Get(ctx, &products); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products for the given User ID")
+		return
+	}
+
+	// Konversi produk ke dalam bentuk list
+	var productList []models.Product
+	for id, product := range products {
+		product.UID = id // Set UID dari key produk
+		productList = append(productList, product)
+	}
+
+	// Kembalikan hasil sebagai respons JSON
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    productList,
+	})
+}
+
 func ViewProduct(w http.ResponseWriter, r *http.Request) {
 	// Mengambil query parameter
 	userName := r.URL.Query().Get("name")
@@ -232,6 +273,48 @@ func ViewProduct(w http.ResponseWriter, r *http.Request) {
 
 	// Jika produk tidak ditemukan
 	if !found {
+		utils.RespondError(w, http.StatusNotFound, "Product not found")
+		return
+	}
+
+	// Mengembalikan respons produk
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    product,
+	})
+}
+
+func ViewProductByID(w http.ResponseWriter, r *http.Request) {
+	// Mengambil query parameter
+	userID := r.URL.Query().Get("user_id")
+	productID := r.URL.Query().Get("product_id")
+
+	// Validasi input parameter
+	if userID == "" || productID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Both 'user_id' and 'product_id' query parameters are required")
+		return
+	}
+
+	// Membuat konteks dan inisialisasi database
+	ctx := context.Background()
+	client, err := config.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Referensi ke produk berdasarkan userID dan productID
+	productRef := client.NewRef(fmt.Sprintf("products/%s/%s", userID, productID))
+	var product models.Product
+
+	// Mendapatkan data produk dari Firebase
+	if err := productRef.Get(ctx, &product); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch product")
+		return
+	}
+
+	// Jika produk tidak ditemukan
+	if product.NameProduct == "" {
 		utils.RespondError(w, http.StatusNotFound, "Product not found")
 		return
 	}
