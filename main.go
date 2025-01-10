@@ -100,6 +100,8 @@ func main() {
 
 	mux.Handle("/products", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchProducts)))
 	mux.Handle("/products/view", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewProduct)))
+	mux.Handle("/products/viewid", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewProductByUID)))
+	mux.Handle("/products/view-seller-product", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchProductsByUserID)))
 	mux.Handle("/products/create", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateProduct)))
 	mux.Handle("/products/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdateProduct)))
 	mux.Handle("/products/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeleteProduct)))

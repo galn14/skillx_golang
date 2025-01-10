@@ -168,6 +168,47 @@ func FetchProducts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func FetchProductsByUserID(w http.ResponseWriter, r *http.Request) {
+	// Ambil `userID` dari query parameter
+	userID := r.URL.Query().Get("uid")
+	if userID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "User ID is required")
+		return
+	}
+
+	ctx := context.Background()
+
+	// Inisialisasi koneksi ke Firebase Database
+	client, err := config.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Referensi ke produk berdasarkan `userID`
+	productsRef := client.NewRef("products/" + userID)
+	var products map[string]models.Product
+
+	// Ambil semua produk dari userID yang diberikan
+	if err := productsRef.Get(ctx, &products); err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch products for the given User ID")
+		return
+	}
+
+	// Konversi produk ke dalam bentuk list
+	var productList []models.Product
+	for id, product := range products {
+		product.UID = id // Set UID dari key produk
+		productList = append(productList, product)
+	}
+
+	// Kembalikan hasil sebagai respons JSON
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    productList,
+	})
+}
+
 func ViewProduct(w http.ResponseWriter, r *http.Request) {
 	// Mengambil query parameter
 	userName := r.URL.Query().Get("name")
@@ -237,6 +278,38 @@ func ViewProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mengembalikan respons produk
+	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data":    product,
+	})
+}
+
+func ViewProductByUID(w http.ResponseWriter, r *http.Request) {
+	// Ambil `uid` dari query parameter
+	productUID := r.URL.Query().Get("uid")
+	if productUID == "" {
+		utils.RespondError(w, http.StatusBadRequest, "Product UID is required")
+		return
+	}
+
+	ctx := context.Background()
+	userID := r.Context().Value("uid").(string) // Mengambil UID pengguna dari konteks
+
+	client, err := config.Database(ctx)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase Database")
+		return
+	}
+
+	// Referensi ke produk berdasarkan UID pengguna dan UID produk
+	productRef := client.NewRef("products/" + userID + "/" + productUID)
+	var product models.Product
+	if err := productRef.Get(ctx, &product); err != nil {
+		utils.RespondError(w, http.StatusNotFound, "Product not found")
+		return
+	}
+
+	// Kirimkan detail produk sebagai respons
 	utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    product,
