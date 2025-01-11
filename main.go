@@ -78,6 +78,7 @@ func main() {
 	mux.Handle("/user/portfolios/create", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreatePortfolio)))
 	mux.Handle("/user/portfolios/update", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.UpdatePortfolio)))
 	mux.Handle("/user/portfolios/delete", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.DeletePortfolio)))
+	mux.Handle("/user/portfolios/view-uid", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.ViewPortfoliosByUID)))
 
 	// Major routes
 	mux.Handle("/majors", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.FetchMajors)))             // Fetch all majors

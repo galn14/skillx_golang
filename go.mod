@@ -5,14 +5,12 @@ go 1.21.6
 require (
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/joho/godotenv v1.5.1
+	github.com/midtrans/midtrans-go v1.3.8
 	google.golang.org/api v0.206.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
 
-require (
-	github.com/midtrans/midtrans-go v1.3.8 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
-)
+require golang.org/x/crypto v0.29.0 // indirect
 
 require (
 	cel.dev/expr v0.16.1 // indirect

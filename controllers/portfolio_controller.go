@@ -50,6 +50,46 @@ func ViewUserPortfolios(w http.ResponseWriter, r *http.Request) {
 	utils.RespondJSON(w, http.StatusOK, result)
 }
 
+// ViewPortfoliosByUID - GET /user/portfolios/view?uid=<uid>
+func ViewPortfoliosByUID(w http.ResponseWriter, r *http.Request) {
+	// Ambil parameter uid dari query string
+	uid := r.URL.Query().Get("uid")
+	if uid == "" {
+		utils.RespondError(w, http.StatusBadRequest, "UID is required as a query parameter")
+		return
+	}
+
+	client, err := config.FirebaseApp.Database(context.Background())
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to connect to Firebase database")
+		return
+	}
+
+	// Referensi ke portfolio milik user tertentu
+	ref := client.NewRef(fmt.Sprintf("portfolios/%s", uid))
+	var portfolios map[string]models.Portfolio
+
+	// Ambil seluruh portfolio milik user
+	err = ref.Get(context.Background(), &portfolios)
+	if err != nil {
+		utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch user portfolios")
+		return
+	}
+
+	if portfolios == nil {
+		utils.RespondJSON(w, http.StatusOK, []models.Portfolio{}) // Jika tidak ada portfolio, return array kosong
+		return
+	}
+
+	// Ubah ke slice untuk respons JSON
+	var result []models.Portfolio
+	for _, portfolio := range portfolios {
+		result = append(result, portfolio)
+	}
+
+	utils.RespondJSON(w, http.StatusOK, result)
+}
+
 func ViewSpecificUserPortfolios(w http.ResponseWriter, r *http.Request) {
 	// Decode request body
 	var requestBody struct {
