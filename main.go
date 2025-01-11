@@ -20,6 +20,7 @@ func main() {
 
 	// Initialize Firebase
 	config.InitializeFirebaseApp()
+	config.LoadMidtransConfig() // Pastikan ini dipanggil!
 
 	// CORS middleware
 	corsMiddleware := func(next http.Handler) http.Handler {
@@ -117,6 +118,8 @@ func main() {
 	mux.Handle("/user/user-seller-data", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleGetUserAndSellerData)))
 	mux.Handle("/admin/regsiterSeller", middleware.FirebaseAuthMiddleware(http.HandlerFunc(handlers.HandleGetAllSellers)))
 
+	//transaction
+	mux.Handle("/api/transactions", middleware.FirebaseAuthMiddleware(http.HandlerFunc(controllers.CreateTransaction)))
 	//tambahin role admin, seller, buyer sebagai middleware
 
 	// Wrap ServeMux with CORS middleware
